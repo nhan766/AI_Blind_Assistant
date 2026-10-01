@@ -194,9 +194,8 @@ class BlindAssistantApp:
             self.model_path = "yolov8n.pt"
         self.model = YOLO(self.model_path)
 
-        # Mặc định mở webcam 0 (đổi thành 1 nếu dùng app DroidCam/Iriun)
-        self.video_source = 0
-        self.cap = cv2.VideoCapture(self.video_source)
+        self.video_source = 2  
+        self.cap = cv2.VideoCapture(self.video_source, cv2.CAP_DSHOW)
         
         self.voice_enabled = tk.BooleanVar(value=True)
         self.frame_queue = queue.Queue(maxsize=1)
@@ -287,10 +286,10 @@ class BlindAssistantApp:
             self.cap = cv2.VideoCapture(self.video_source)
 
     def switch_to_camera(self):
-        self.video_source = 0
-        if self.cap.isOpened():
-            self.cap.release()
-        self.cap = cv2.VideoCapture(0)
+            self.video_source = 1 
+            if self.cap.isOpened():
+                self.cap.release()
+            self.cap = cv2.VideoCapture(self.video_source, cv2.CAP_DSHOW)
 
     def _draw_hud(self, frame, nav_result):
         h, w, _ = frame.shape
