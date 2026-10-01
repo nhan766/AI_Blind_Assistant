@@ -300,7 +300,7 @@ class BlindAssistantApp:
         cv2.line(frame, (r_bound, 0), (r_bound, h), (80, 80, 80), 1, cv2.LINE_AA)
 
         cv2.putText(frame, "TRAI", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (180, 180, 180), 2)
-        cv2.putText(frame, "GIUA (DI CHUYEN)", (l_bound + 20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+        cv2.putText(frame, "GIUA", (l_bound + 20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
         cv2.putText(frame, "PHAI", (r_bound + 20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (180, 180, 180), 2)
 
         if nav_result:
