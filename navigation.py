@@ -3,7 +3,7 @@ class NavigationEngine:
         self.current_state = "GO_STRAIGHT"
         self.candidate_state = "GO_STRAIGHT"
         self.candidate_count = 0
-        self.NORMAL_FRAMES = 10
+        self.NORMAL_FRAMES = 8
         self.EMERGENCY_FRAMES = 3
 
     def analyze_frame(self, detections, frame_width, frame_height):
@@ -11,7 +11,6 @@ class NavigationEngine:
         r_bound = frame_width * 0.67
         center_mid = frame_width / 2
 
-        # Chỉ tính điểm đe dọa từ các vật thể ở cự ly GẦN hoặc RẤT GẦN
         zone_threats = {"LEFT": 0.0, "CENTER": 0.0, "RIGHT": 0.0}
         close_objects = []
         center_close_objs = []
@@ -22,21 +21,24 @@ class NavigationEngine:
             w_box = max(1.0, float(x2 - x1))
             h_box = float(y2 - y1)
             cx = (x1 + x2) / 2
+            
             area_ratio = (w_box * h_box) / (frame_width * frame_height)
             height_ratio = h_box / frame_height
 
-            # Phân loại cự ly
-            if area_ratio > 0.20 or height_ratio > 0.50:
+            # --- CHUẨN HÓA NGƯỠNG CỰ LY THỰC TẾ ---
+            # 1. Rất gần (< 1.2m): Người choán gần hết chiều cao camera
+            if area_ratio > 0.28 or height_ratio > 0.65:
                 dist = "VERY_CLOSE"
                 threat = 3.0
-            elif area_ratio > 0.07 or height_ratio > 0.28:
+            # 2. Gần (1.5m - 2.5m): Cần chủ động chuyển hướng né
+            elif area_ratio > 0.12 or height_ratio > 0.45:
                 dist = "CLOSE"
                 threat = 1.5
+            # 3. An toàn (> 3m): Chưa gây nguy hiểm, không tính điểm đe dọa
             else:
                 dist = "FAR"
-                threat = 0.0  # Vật ở xa không tính điểm đe dọa để tránh cản trở lối né
+                threat = 0.0
 
-            # Phân bổ độ phủ chiều ngang
             overlap_l = max(0.0, min(float(x2), l_bound) - max(float(x1), 0.0))
             overlap_c = max(0.0, min(float(x2), r_bound) - max(float(x1), l_bound))
             overlap_r = max(0.0, min(float(x2), float(frame_width)) - max(float(x1), r_bound))
@@ -56,35 +58,41 @@ class NavigationEngine:
         l_threat = zone_threats["LEFT"]
         r_threat = zone_threats["RIGHT"]
 
-        # --- RA QUYẾT ĐỊNH ĐIỀU HƯỚNG ---
-        if c_threat >= 1.2:  # Làn giữa có vật cản gần
-            # 1. Quá nguy hiểm hoặc cả 2 bên đều vướng vật cản gần -> DỪNG LẠI
-            if c_threat >= 2.8 and (l_threat >= 1.2 or r_threat >= 1.2):
+        left_safe = (l_threat < 1.0)
+        right_safe = (r_threat < 1.0)
+
+        # --- LOGIC ĐIỀU HƯỚNG ---
+        # Chỉ can thiệp đổi hướng khi làn giữa có vật cản gần (threat >= 1.2)
+        if c_threat >= 1.2:
+            # Tình huống 1: Cả 2 bên đều bị chặn cứng -> BẮT BUỘC DỪNG
+            if not left_safe and not right_safe:
                 instant_cmd = "STOP"
             
-            # 2. Xét vị trí lệch của vật cản sát mặt
+            # Tình huống 2: Có lối thoát -> Ưu tiên né sang bên an toàn
             else:
-                # Tính tâm trung bình của vật cản phía trước
                 avg_cx = sum(center_close_objs) / len(center_close_objs) if center_close_objs else center_mid
                 
-                # Nếu vật cản ở giữa lệch sang bên PHẢI (cx >= center_mid) -> BẮT BUỘC NÉ TRÁI
-                if avg_cx >= center_mid:
-                    if l_threat < 1.2:
+                # Vật cản lệch TRÁI -> né PHẢI
+                if avg_cx < center_mid:
+                    if right_safe:
+                        instant_cmd = "TURN_RIGHT"
+                    elif left_safe:
                         instant_cmd = "TURN_LEFT"
                     else:
-                        instant_cmd = "STOP"  # Bên trái vướng vật cản gần, không né được thì dừng
-                
-                # Nếu vật cản ở giữa lệch sang bên TRÁI (cx < center_mid) -> BẮT BUỘC NÉ PHẢI
+                        instant_cmd = "STOP"
+                # Vật cản lệch PHẢI -> né TRÁI
                 else:
-                    if r_threat < 1.2:
+                    if left_safe:
+                        instant_cmd = "TURN_LEFT"
+                    elif right_safe:
                         instant_cmd = "TURN_RIGHT"
                     else:
                         instant_cmd = "STOP"
-
         else:
+            # Làn giữa còn khoảng cách an toàn -> TIẾP TỤC ĐI THẲNG
             instant_cmd = "GO_STRAIGHT"
 
-        # --- BỘ LỌC CHỐNG NHẢY HƯỚNG ---
+        # --- BỘ LỌC CHỐNG RUNG HƯỚNG ---
         required_frames = self.EMERGENCY_FRAMES if instant_cmd == "STOP" else self.NORMAL_FRAMES
         if instant_cmd == self.candidate_state:
             self.candidate_count += 1
